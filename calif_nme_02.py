@@ -136,7 +136,7 @@ st.divider()
 # ─── Menú de navegación ───────────────────────────────────────────────────────
 opcion = st.sidebar.radio(
     "📋 Menú principal",
-    ["📊 Calificaciones del Alumno", "📈 Estadísticos del Periodo", "📉 Estadístico por Materia"],
+    ["📊 Calificaciones del Alumno", "📈 Estadísticos del Periodo", "📉 Estadístico por Materia", "📜 Historial del Alumno"],
     label_visibility="visible",
 )
 
@@ -554,7 +554,7 @@ elif opcion == "📈 Estadísticos del Periodo":
 # ══════════════════════════════════════════════════════════════════════════════
 # OPCIÓN 3 — ESTADÍSTICO POR MATERIA
 # ══════════════════════════════════════════════════════════════════════════════
-else:
+elif opcion == "📉 Estadístico por Materia":
     st.subheader("📉 Estadístico por Materia")
 
     materias_todas = sorted(df["materia"].unique())
@@ -654,3 +654,90 @@ else:
         tabla = prom_grupo.pivot(index="Periodo", columns="Grupo", values="Promedio").round(2)
         tabla.index = tabla.index.astype(str)
         st.dataframe(tabla, use_container_width=True)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# OPCIÓN 4 — HISTORIAL DEL ALUMNO
+# ══════════════════════════════════════════════════════════════════════════════
+else:
+    st.subheader("📜 Historial del Alumno")
+
+    matricula_hist = st.text_input(
+        "Matrícula del alumno",
+        placeholder="Ej. 25013770",
+        max_chars=20,
+        key="hist_matricula",
+    )
+
+    if not matricula_hist:
+        st.info("👆 Ingresa la matrícula para consultar el historial del alumno.")
+        st.stop()
+
+    matricula_hist = matricula_hist.strip()
+    df_historial = df[df["matricula"] == matricula_hist].copy()
+
+    if df_historial.empty:
+        st.warning(f"No se encontró ningún registro para la matrícula **{matricula_hist}**.")
+        st.stop()
+
+    nombre_alumno = df_historial.iloc[0]["nombre"]
+
+    st.markdown(
+        f"""
+        <div class="alumno-info">
+            <strong>👤 {nombre_alumno}</strong> &nbsp;|&nbsp;
+            Matrícula: <code>{matricula_hist}</code>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # Ordenar cronológicamente
+    df_historial = df_historial.sort_values(["anio", "periodo", "materia"])
+
+    # Construir tabla del kardex
+    kardex = df_historial[["anio", "periodo", "materia", "grupo", "final"]].copy()
+    kardex.columns = ["Año", "Periodo", "Materia", "Grupo", "Calificación Final"]
+    kardex["Calificación Final"] = kardex["Calificación Final"].round(1)
+    kardex = kardex.reset_index(drop=True)
+
+    # Aplicar color condicional a la columna de calificación
+    def color_calif(val):
+        color = "#27ae60" if val >= 7 else "#c0392b"
+        return f"color: {color}; font-weight: bold"
+
+    st.dataframe(
+        kardex.style
+            .format({"Calificación Final": "{:.1f}"})
+            .applymap(color_calif, subset=["Calificación Final"]),
+        use_container_width=True,
+        hide_index=True,
+    )
+
+    # Resumen al pie
+    total = len(kardex)
+    aprobadas = int((df_historial["final"] >= 7).sum())
+    reprobadas = total - aprobadas
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.markdown(
+            f'<div class="metric-box"><div class="valor">{total}</div>'
+            f'<div class="etiqueta">Materias cursadas</div></div>',
+            unsafe_allow_html=True,
+        )
+    with c2:
+        st.markdown(
+            f'<div class="metric-box" style="background: linear-gradient(135deg,#1a7a4a,#27ae60);">'
+            f'<div class="valor">{aprobadas}</div>'
+            f'<div class="etiqueta">Aprobadas</div></div>',
+            unsafe_allow_html=True,
+        )
+    with c3:
+        st.markdown(
+            f'<div class="metric-box" style="background: linear-gradient(135deg,#7a1a1a,#c0392b);">'
+            f'<div class="valor">{reprobadas}</div>'
+            f'<div class="etiqueta">Reprobadas</div></div>',
+            unsafe_allow_html=True,
+        )
